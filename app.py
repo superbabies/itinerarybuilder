@@ -8,7 +8,7 @@ CORS(app)
 
 @app.route('/')
 def home():
-    return "Hello from Itinerary Builder!"
+    return jsonify("Hello from Itinerary Builder!")
 
 # Endpoint to receive user preferences and build an itinerary
 # Basic for now but will be expanded upon to call DB
