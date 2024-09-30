@@ -1,1 +1,6 @@
 venv/
+
+.env*
+.flaskenv*
+!.env.project
+!.env.vault
