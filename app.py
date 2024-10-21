@@ -1,10 +1,22 @@
 from flask import Flask, jsonify, request
 from flask_cors import CORS
-
+import logging
 from itinerary_builder import build_itinerary
 
 app = Flask(__name__)
 CORS(app)
+
+# Set up basic logging configuration
+logging.basicConfig(level=logging.INFO)
+
+@app.before_request
+def before_request_logging():
+    logging.info(f"Before Request: {request.method} {request.path}")
+
+@app.after_request
+def after_request_logging(response):
+    logging.info(f"After Request: {request.method} {request.path} - Status: {response.status_code}")
+    return response
 
 @app.route('/')
 def home():
