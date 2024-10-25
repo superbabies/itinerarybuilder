@@ -1,38 +1,44 @@
-from flask import Flask, jsonify, request
-from flask_cors import CORS
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 import logging
 from itinerary_builder import build_itinerary
 
-app = Flask(__name__)
-CORS(app)
+app = FastAPI()
 
 # Set up basic logging configuration
 logging.basicConfig(level=logging.INFO)
 
-@app.before_request
-def before_request_logging():
-    logging.info(f"Before Request: {request.method} {request.path}")
+# CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Adjust this as needed
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-@app.after_request
-def after_request_logging(response):
-    logging.info(f"After Request: {request.method} {request.path} - Status: {response.status_code}")
+# Define Pydantic models for request validation
+class ItineraryRequest(BaseModel):
+    destination: str
+    start_date: str
+    end_date: str
+    activities: list
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    logging.info(f"Before Request: {request.method} {request.url.path}")
+    response = await call_next(request)
+    logging.info(f"After Request: {request.method} {request.url.path} - Status: {response.status_code}")
     return response
 
-@app.route('/')
-def home():
-    return jsonify({'response': "Hello from Itinerary Builder!"})
+@app.get("/")
+async def home():
+    return {"response": "Hello from Itinerary Builder!"}
 
-# Endpoint to receive user preferences and build an itinerary
-# Basic for now but will be expanded upon to call DB
-# and other services to get more data
-# Hardcode most data for now
-# Other microservices will eventually be called to get this data
-@app.route('/generate_itinerary', methods=['POST'])
-def generate_itinerary():
-    data = request.json  # Get the input data as JSON
-    
-    if not data or 'destination' not in data or 'start_date' not in data or 'end_date' not in data or 'activities' not in data:
-        return jsonify({"error": "Missing required fields"}), 400
+@app.post("/generate_itinerary")
+async def generate_itinerary(request: ItineraryRequest):
+    data = request.dict()  # Convert Pydantic model to dictionary
     
     # Extract the input data
     destination = data['destination']
@@ -40,15 +46,12 @@ def generate_itinerary():
     end_date = data['end_date']
     activities = data['activities']  # This should be a list of activities
     
-    # Call the itinerary builder function
-    itinerary = build_itinerary(destination, start_date, end_date, activities)
-
-    # Export itinerary to Google Calendar
-    # This will be implemented in future 
+    if not destination or not start_date or not end_date or not activities:
+        raise HTTPException(status_code=400, detail="Missing required fields")
     
-    return jsonify(itinerary), 200
-
-
+    itinerary = build_itinerary(destination, start_date, end_date, activities)
+    return itinerary
 
 if __name__ == '__main__':
-    app.run(app.run(host='0.0.0.0', port=8000, debug=True))
+    import uvicorn
+    uvicorn.run(app, host='0.0.0.0', port=5000, log_level="info")
