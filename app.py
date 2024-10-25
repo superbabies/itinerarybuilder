@@ -1,8 +1,10 @@
+import uuid
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import logging
 from itinerary_builder import build_itinerary
+from database import create_connection
 
 app = FastAPI()
 
@@ -50,6 +52,33 @@ async def generate_itinerary(request: ItineraryRequest):
         raise HTTPException(status_code=400, detail="Missing required fields")
     
     itinerary = build_itinerary(destination, start_date, end_date, activities)
+
+    # Generate a unique ID for the itinerary
+    itinerary_id = str(uuid.uuid4())
+
+    # Post to database using mysql-connector
+    connection = create_connection()
+    cursor = connection.cursor()
+    cursor.execute("INSERT INTO itineraries (id, destination, start_date, end_date, activities) VALUES (%s, %s, %s, %s, %s)", (itinerary_id, destination, start_date, end_date, str(activities)))
+    connection.commit()
+    connection.close()
+
+    return itinerary
+
+@app.get("/get_itineraries?user_id={user_id}")
+async def get_itineraries(request: Request):
+
+    request = Request
+    user_id = request.query_params.get('user_id')
+
+    connection = create_connection()
+    cursor = connection.cursor()
+    itinerary = cursor.execute("SELECT * FROM itineraries WHERE id = %s", (user_id))
+    connection.close()
+
+    if not itinerary:
+        raise HTTPException(status_code=404, detail="Itinerary not found for user ID {}".format(user_id))
+
     return itinerary
 
 if __name__ == '__main__':
