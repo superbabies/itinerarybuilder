@@ -1,4 +1,5 @@
 import uuid
+import logging
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -59,25 +60,27 @@ async def generate_itinerary(request: ItineraryRequest):
     # Post to database using mysql-connector
     connection = create_connection()
     cursor = connection.cursor()
-    cursor.execute("INSERT INTO itineraries (id, destination, start_date, end_date, activities) VALUES (%s, %s, %s, %s, %s)", (itinerary_id, destination, start_date, end_date, str(activities)))
+    cursor.execute("INSERT INTO itinerary_builder.itineraries (id, destination, start_date, end_date, activities) VALUES (%s, %s, %s, %s, %s)", (itinerary_id, destination, start_date, end_date, str(activities)))
     connection.commit()
     connection.close()
 
-    return itinerary
+    return itinerary_id, itinerary
 
-@app.get("/get_itineraries?user_id={user_id}")
+@app.get("/get_itineraries")
 async def get_itineraries(request: Request):
+    id = request.query_params.get('id')
 
-    request = Request
-    user_id = request.query_params.get('user_id')
+    logging.info(f"Requested ID: {id}")
 
     connection = create_connection()
     cursor = connection.cursor()
-    itinerary = cursor.execute("SELECT * FROM itineraries WHERE id = %s", (user_id))
+    cursor.execute("SELECT * FROM itinerary_builder.itineraries WHERE itinerary_id = %s", (id,))
+    itinerary = cursor.fetchall()
+    logging.info(f"Returned Itinerary: {itinerary}")
     connection.close()
 
     if not itinerary:
-        raise HTTPException(status_code=404, detail="Itinerary not found for user ID {}".format(user_id))
+        raise HTTPException(status_code=404, detail="Itinerary not found for itinerary ID {}".format(id))
 
     return itinerary
 
