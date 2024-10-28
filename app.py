@@ -1,4 +1,5 @@
 import uuid
+import logging
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -65,19 +66,21 @@ async def generate_itinerary(request: ItineraryRequest):
 
     return itinerary_id, itinerary
 
-@app.get("/get_itineraries?id={id}")
+@app.get("/get_itineraries")
 async def get_itineraries(request: Request):
+    id = request.query_params.get('id')
 
-    request = Request
-    user_id = request.query_params.get('id')
+    logging.info(f"Requested ID: {id}")
 
     connection = create_connection()
     cursor = connection.cursor()
-    itinerary = cursor.execute("SELECT * FROM itinerary_builder.itineraries WHERE id = %s", (id))
+    cursor.execute("SELECT * FROM itinerary_builder.itineraries WHERE itinerary_id = %s", (id,))
+    itinerary = cursor.fetchall()
+    logging.info(f"Returned Itinerary: {itinerary}")
     connection.close()
 
     if not itinerary:
-        raise HTTPException(status_code=404, detail="Itinerary not found for ID {}".format(id))
+        raise HTTPException(status_code=404, detail="Itinerary not found for itinerary ID {}".format(id))
 
     return itinerary
 
