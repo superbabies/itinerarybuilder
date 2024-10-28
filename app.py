@@ -59,7 +59,7 @@ async def generate_itinerary(request: ItineraryRequest):
     # Post to database using mysql-connector
     connection = create_connection()
     cursor = connection.cursor()
-    cursor.execute("INSERT INTO itineraries (id, destination, start_date, end_date, activities) VALUES (%s, %s, %s, %s, %s)", (itinerary_id, destination, start_date, end_date, str(activities)))
+    cursor.execute("INSERT INTO itinerary_builder.itineraries (id, destination, start_date, end_date, activities) VALUES (%s, %s, %s, %s, %s)", (itinerary_id, destination, start_date, end_date, str(activities)))
     connection.commit()
     connection.close()
 
@@ -73,7 +73,7 @@ async def get_itineraries(request: Request):
 
     connection = create_connection()
     cursor = connection.cursor()
-    itinerary = cursor.execute("SELECT * FROM itineraries WHERE id = %s", (id))
+    itinerary = cursor.execute("SELECT * FROM itinerary_builder.itineraries WHERE id = %s", (id))
     connection.close()
 
     if not itinerary:
