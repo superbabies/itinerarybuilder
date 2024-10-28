@@ -63,21 +63,21 @@ async def generate_itinerary(request: ItineraryRequest):
     connection.commit()
     connection.close()
 
-    return itinerary
+    return itinerary_id, itinerary
 
-@app.get("/get_itineraries?user_id={user_id}")
+@app.get("/get_itineraries?id={id}")
 async def get_itineraries(request: Request):
 
     request = Request
-    user_id = request.query_params.get('user_id')
+    user_id = request.query_params.get('id')
 
     connection = create_connection()
     cursor = connection.cursor()
-    itinerary = cursor.execute("SELECT * FROM itineraries WHERE id = %s", (user_id))
+    itinerary = cursor.execute("SELECT * FROM itineraries WHERE id = %s", (id))
     connection.close()
 
     if not itinerary:
-        raise HTTPException(status_code=404, detail="Itinerary not found for user ID {}".format(user_id))
+        raise HTTPException(status_code=404, detail="Itinerary not found for ID {}".format(id))
 
     return itinerary
 
