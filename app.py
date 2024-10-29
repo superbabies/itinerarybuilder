@@ -41,26 +41,27 @@ async def home():
 
 @app.post("/generate_itinerary")
 async def generate_itinerary(request: ItineraryRequest):
-    data = request.dict()  # Convert Pydantic model to dictionary
+    data = request.dict()
     
     # Extract the input data
     destination = data['destination']
     start_date = data['start_date']
     end_date = data['end_date']
-    activities = data['activities']  # This should be a list of activities
+    activities = data['activities']
     
     if not destination or not start_date or not end_date or not activities:
         raise HTTPException(status_code=400, detail="Missing required fields")
     
     itinerary = build_itinerary(destination, start_date, end_date, activities)
 
-    # Generate a unique ID for the itinerary
-    itinerary_id = str(uuid.uuid4())
-
     # Post to database using mysql-connector
     connection = create_connection()
     cursor = connection.cursor()
-    cursor.execute("INSERT INTO itinerary_builder.itineraries (id, destination, start_date, end_date, activities) VALUES (%s, %s, %s, %s, %s)", (itinerary_id, destination, start_date, end_date, str(activities)))
+    cursor.execute("INSERT INTO itinerary_builder.itineraries (destination, start_date, end_date, itinerary) VALUES (%s, %s, %s, %s)", (destination, start_date, end_date, itinerary))
+    connection.commit()
+    itinerary_id = cursor.lastrowid
+    for day in itinerary:
+        cursor.execute("INSERT INTO itinerary_builder.itinerary_days (itinerary_id, date, destination, activities) VALUES (%s, %s, %s, %s)", (itinerary_id, day['date'], day['destination'], day['activities']))
     connection.commit()
     connection.close()
 
