@@ -1,11 +1,13 @@
-import uuid
-import logging
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import logging
-from itinerary_builder import build_itinerary
+import os
+from dotenv import load_dotenv
 from database import create_connection
+from itinerary_builder import build_itinerary
+
+load_dotenv()
 
 app = FastAPI()
 
@@ -21,7 +23,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Define Pydantic models for request validation
 class ItineraryRequest(BaseModel):
     destination: str
     start_date: str
@@ -43,7 +44,7 @@ async def home():
 async def generate_itinerary(request: ItineraryRequest):
     data = request.dict()
     
-    # Extract the input data
+
     destination = data['destination']
     start_date = data['start_date']
     end_date = data['end_date']
@@ -54,36 +55,79 @@ async def generate_itinerary(request: ItineraryRequest):
     
     itinerary = build_itinerary(destination, start_date, end_date, activities)
 
-    # Post to database using mysql-connector
+
     connection = create_connection()
     cursor = connection.cursor()
-    cursor.execute("INSERT INTO itinerary_builder.itineraries (destination, start_date, end_date, itinerary) VALUES (%s, %s, %s, %s)", (destination, start_date, end_date, itinerary))
+    cursor.execute("INSERT INTO itinerary_builder.itineraries (destination, start_date, end_date) VALUES (%s, %s, %s)", (destination, start_date, end_date))
     connection.commit()
     itinerary_id = cursor.lastrowid
     for day in itinerary:
-        cursor.execute("INSERT INTO itinerary_builder.itinerary_days (itinerary_id, date, destination, activities) VALUES (%s, %s, %s, %s)", (itinerary_id, day['date'], day['destination'], day['activities']))
+        cursor.execute("INSERT INTO itinerary_builder.days (itinerary_id) VALUES (%s)", (itinerary_id))
+        day_id = cursor.lastrowid
+        for event in day['activities']:
+            cursor.execute("INSERT INTO itinerary_builder.day_events (day_id, event_id, start_time, end_time) VALUES (%s, %s, %s, %s)", (day_id, event['id'], event['start_time'], event['end_time']))
     connection.commit()
     connection.close()
 
-    return itinerary_id, itinerary
+
+    response = {
+        "itinerary_id": itinerary_id,
+        "itinerary": itinerary,
+        "links": {
+            "self": f"{os.getenv('ITINERARY_BUILDER_URL')}/get_itineraries?id={itinerary_id}",
+            "all_itineraries": "{}/get_itineraries".format(os.getenv('ITINERARY_BUILDER_URL'))
+        }
+    }
+
+    return response
 
 @app.get("/get_itineraries")
 async def get_itineraries(request: Request):
     id = request.query_params.get('id')
+
+    # return all itineraries if no ID is provided (default)
+    if not id:
+        connection = create_connection()
+        cursor = connection.cursor()
+        cursor.execute("SELECT * FROM itinerary_builder.itineraries")
+        itineraries = cursor.fetchall()
+        connection.close()
+
+        response = {
+            "itineraries": itineraries,
+            "links": {
+                "self": f"{os.getenv('ITINERARY_BUILDER_URL')}/get_itineraries",
+                "create_itinerary": f"{os.getenv('ITINERARY_BUILDER_URL')}/generate_itinerary"
+            }
+        }
+
+        return response, 200
 
     logging.info(f"Requested ID: {id}")
 
     connection = create_connection()
     cursor = connection.cursor()
     cursor.execute("SELECT * FROM itinerary_builder.itineraries WHERE itinerary_id = %s", (id,))
-    itinerary = cursor.fetchall()
-    logging.info(f"Returned Itinerary: {itinerary}")
+    itinerary = cursor.fetchone()
+    cursor.execute("SELECT * FROM itinerary_builder.days WHERE itinerary_id = %s", (id,))
+    itinerary_days = cursor.fetchall()
     connection.close()
 
     if not itinerary:
-        raise HTTPException(status_code=404, detail="Itinerary not found for itinerary ID {}".format(id))
+        raise HTTPException(status_code=404, detail=f"Itinerary not found for ID {id}")
 
-    return itinerary
+
+    response = {
+        "itinerary": itinerary,
+        "itinerary_days": itinerary_days,
+        "links": {
+            "self": f"{os.getenv('ITINERARY_BUILDER_URL')}/get_itineraries?id={id}",
+            "all_itineraries": f"{os.getenv('ITINERARY_BUILDER_URL')}/get_itineraries",
+            "create_itinerary": f"{os.getenv('ITINERARY_BUILDER_URL')}/generate_itinerary"
+        }
+    }
+
+    return response, 200
 
 if __name__ == '__main__':
     import uvicorn
