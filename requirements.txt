@@ -8,3 +8,5 @@ flask-cors
 uvicorn
 fastapi
 mysql-connector-python
+datetime
+pytz

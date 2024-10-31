@@ -61,7 +61,8 @@ async def generate_itinerary(request: ItineraryRequest):
     if not destination or not start_date or not end_date or not activities:
         raise HTTPException(status_code=400, detail="Missing required fields")
     
-    itinerary = build_itinerary(destination, start_date, end_date, activities)
+    
+    itinerary = build_itinerary(start_date, end_date, activities)
 
 
     connection = create_connection()
@@ -70,7 +71,7 @@ async def generate_itinerary(request: ItineraryRequest):
     connection.commit()
     itinerary_id = cursor.lastrowid
     for day in itinerary:
-        cursor.execute("INSERT INTO itinerary_builder.days (itinerary_id) VALUES (%s)", (itinerary_id))
+        cursor.execute("INSERT INTO itinerary_builder.days (itinerary_id) VALUES (%s)", (itinerary_id,))
         connection.commit()
         day_id = cursor.lastrowid
         for event in day['activities']:
