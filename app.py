@@ -40,6 +40,14 @@ async def log_requests(request: Request, call_next):
 async def home():
     return {"response": "Hello from Itinerary Builder!"}
 
+"""
+Generate an itinerary based on the provided parameters.
+@params: destination, start_date, end_date, activities
+destination: str
+start_date: str
+end_date: str
+activities: list[int] (list of activity IDs)
+"""
 @app.post("/generate_itinerary")
 async def generate_itinerary(request: ItineraryRequest):
     data = request.dict()
@@ -63,10 +71,12 @@ async def generate_itinerary(request: ItineraryRequest):
     itinerary_id = cursor.lastrowid
     for day in itinerary:
         cursor.execute("INSERT INTO itinerary_builder.days (itinerary_id) VALUES (%s)", (itinerary_id))
+        connection.commit()
         day_id = cursor.lastrowid
         for event in day['activities']:
-            cursor.execute("INSERT INTO itinerary_builder.day_events (day_id, event_id, start_time, end_time) VALUES (%s, %s, %s, %s)", (day_id, event['id'], event['start_time'], event['end_time']))
-    connection.commit()
+            cursor.execute("INSERT INTO itinerary_builder.day_events (day_id, event_id, start_time, end_time) VALUES (%s, %s, %s, %s)", (day_id, event['activity'], event['start_time'], event['end_time']))
+            connection.commit()
+        connection.commit()
     connection.close()
 
 
@@ -80,7 +90,10 @@ async def generate_itinerary(request: ItineraryRequest):
     }
 
     return response
-
+"""
+Get itineraries based on the provided ID.
+query @params: itinerary id (int)
+"""
 @app.get("/get_itineraries")
 async def get_itineraries(request: Request):
     id = request.query_params.get('id')
