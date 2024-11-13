@@ -6,6 +6,7 @@ import os
 from dotenv import load_dotenv
 from database import create_connection
 from itinerary_builder import build_itinerary
+from datetime import datetime, timedelta, timezone
 
 load_dotenv()
 
