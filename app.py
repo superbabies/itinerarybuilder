@@ -29,6 +29,12 @@ class ItineraryRequest(BaseModel):
     end_date: str
     activities: list
 
+class ItineraryUpdateRequest(BaseModel):
+    destination: str = None
+    start_date: str = None
+    end_date: str = None
+    activities: list[int] = None  # List of activity IDs
+
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
     logging.info(f"Before Request: {request.method} {request.url.path}")
@@ -64,7 +70,6 @@ async def generate_itinerary(request: ItineraryRequest):
     
     itinerary = build_itinerary(start_date, end_date, activities)
 
-
     connection = create_connection()
     cursor = connection.cursor()
     cursor.execute("INSERT INTO itinerary_builder.itineraries (destination, start_date, end_date) VALUES (%s, %s, %s)", (destination, start_date, end_date))
@@ -90,7 +95,7 @@ async def generate_itinerary(request: ItineraryRequest):
         }
     }
 
-    return response
+    return response, 201
 """
 Get itineraries based on the provided ID.
 query @params: itinerary id (int)
@@ -120,11 +125,22 @@ async def get_itineraries(request: Request):
     logging.info(f"Requested ID: {id}")
 
     connection = create_connection()
-    cursor = connection.cursor()
+    cursor = connection.cursor(dictionary=True)
     cursor.execute("SELECT * FROM itinerary_builder.itineraries WHERE itinerary_id = %s", (id,))
     itinerary = cursor.fetchone()
     cursor.execute("SELECT * FROM itinerary_builder.days WHERE itinerary_id = %s", (id,))
     itinerary_days = cursor.fetchall()
+    start_date = itinerary['start_date']
+    end_date = itinerary['end_date']
+    list_of_days = [(start_date + timedelta(days=i)).strftime("%Y-%m-%d") for i in range((end_date - start_date).days + 1)]
+    day_idx = 0
+    for day in itinerary_days:
+        cursor.execute("SELECT * FROM itinerary_builder.day_events WHERE day_id = %s", (day["day_id"],))
+        day_events = cursor.fetchall()
+        day["events"] = day_events
+        day_date = datetime.strptime(list_of_days[day_idx], "%Y-%m-%d").replace(tzinfo=timezone.utc)
+        day["utc_date"] = day_date.isoformat()
+        day_idx += 1
     connection.close()
 
     if not itinerary:
@@ -134,6 +150,8 @@ async def get_itineraries(request: Request):
     response = {
         "itinerary": itinerary,
         "itinerary_days": itinerary_days,
+
+        "destination": itinerary['destination'],
         "links": {
             "self": f"{os.getenv('ITINERARY_BUILDER_URL')}/get_itineraries?id={id}",
             "all_itineraries": f"{os.getenv('ITINERARY_BUILDER_URL')}/get_itineraries",
