@@ -8,7 +8,7 @@ from database import create_connection
 from itinerary_builder import build_itinerary
 from datetime import datetime, timedelta, timezone
 
-load_dotenv()
+load_dotenv(override=True)
 
 app = FastAPI()
 
@@ -75,7 +75,7 @@ async def generate_itinerary(request: ItineraryRequest):
 
     connection = create_connection()
     cursor = connection.cursor()
-    cursor.execute("INSERT INTO itinerary_builder.itineraries (user_id, destination, start_date, end_date) VALUES (%s, %s, %s)", (user_id, destination, start_date, end_date))
+    cursor.execute("INSERT INTO itinerary_builder.itineraries (user_id, destination, start_date, end_date) VALUES (%s, %s, %s, %s)", (user_id, destination, start_date, end_date))
     connection.commit()
     itinerary_id = cursor.lastrowid
     for day in itinerary:
@@ -120,7 +120,7 @@ async def get_itineraries(request: Request):
             "itineraries": itineraries,
             "links": {
                 "self": f"{os.getenv('ITINERARY_BUILDER_URL')}/get_itineraries?user_id={user_id}",
-                "create_itinerary": f"{os.getenv('ITINERARY_BUILDER_URL')}/generate_itinerary"
+                "generate_itinerary": f"{os.getenv('ITINERARY_BUILDER_URL')}/generate_itinerary"
             }
         }
 
