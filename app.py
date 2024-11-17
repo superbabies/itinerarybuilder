@@ -6,8 +6,9 @@ import os
 from dotenv import load_dotenv
 from database import create_connection
 from itinerary_builder import build_itinerary
+from datetime import datetime, timedelta, timezone
 
-load_dotenv()
+load_dotenv(override=True)
 
 app = FastAPI()
 
@@ -28,6 +29,7 @@ class ItineraryRequest(BaseModel):
     start_date: str
     end_date: str
     activities: list
+    user_id: str
 
 class ItineraryUpdateRequest(BaseModel):
     destination: str = None
@@ -63,8 +65,9 @@ async def generate_itinerary(request: ItineraryRequest):
     start_date = data['start_date']
     end_date = data['end_date']
     activities = data['activities']
+    user_id = data['user_id']
     
-    if not destination or not start_date or not end_date or not activities:
+    if not destination or not start_date or not end_date or not activities or not user_id:
         raise HTTPException(status_code=400, detail="Missing required fields")
     
     
@@ -72,7 +75,7 @@ async def generate_itinerary(request: ItineraryRequest):
 
     connection = create_connection()
     cursor = connection.cursor()
-    cursor.execute("INSERT INTO itinerary_builder.itineraries (destination, start_date, end_date) VALUES (%s, %s, %s)", (destination, start_date, end_date))
+    cursor.execute("INSERT INTO itinerary_builder.itineraries (user_id, destination, start_date, end_date) VALUES (%s, %s, %s, %s)", (user_id, destination, start_date, end_date))
     connection.commit()
     itinerary_id = cursor.lastrowid
     for day in itinerary:
@@ -90,8 +93,8 @@ async def generate_itinerary(request: ItineraryRequest):
         "itinerary_id": itinerary_id,
         "itinerary": itinerary,
         "links": {
-            "self": f"{os.getenv('ITINERARY_BUILDER_URL')}/get_itineraries?id={itinerary_id}",
-            "all_itineraries": "{}/get_itineraries".format(os.getenv('ITINERARY_BUILDER_URL'))
+            "self": f"{os.getenv('ITINERARY_BUILDER_URL')}/get_itineraries?user_id={user_id}&id={itinerary_id}",
+            "all_itineraries": f"{os.getenv('ITINERARY_BUILDER_URL')}/get_itineraries?user_id={user_id}"
         }
     }
 
@@ -103,20 +106,21 @@ query @params: itinerary id (int)
 @app.get("/get_itineraries")
 async def get_itineraries(request: Request):
     id = request.query_params.get('id')
+    user_id = request.query_params.get('user_id')
 
     # return all itineraries if no ID is provided (default)
     if not id:
         connection = create_connection()
         cursor = connection.cursor()
-        cursor.execute("SELECT * FROM itinerary_builder.itineraries")
+        cursor.execute("SELECT * FROM itinerary_builder.itineraries WHERE user_id = %s", (user_id,))
         itineraries = cursor.fetchall()
         connection.close()
 
         response = {
             "itineraries": itineraries,
             "links": {
-                "self": f"{os.getenv('ITINERARY_BUILDER_URL')}/get_itineraries",
-                "create_itinerary": f"{os.getenv('ITINERARY_BUILDER_URL')}/generate_itinerary"
+                "self": f"{os.getenv('ITINERARY_BUILDER_URL')}/get_itineraries?user_id={user_id}",
+                "generate_itinerary": f"{os.getenv('ITINERARY_BUILDER_URL')}/generate_itinerary"
             }
         }
 
@@ -126,7 +130,7 @@ async def get_itineraries(request: Request):
 
     connection = create_connection()
     cursor = connection.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM itinerary_builder.itineraries WHERE itinerary_id = %s", (id,))
+    cursor.execute("SELECT * FROM itinerary_builder.itineraries WHERE itinerary_id = %s AND user_id = %s", (id, user_id,))
     itinerary = cursor.fetchone()
     cursor.execute("SELECT * FROM itinerary_builder.days WHERE itinerary_id = %s", (id,))
     itinerary_days = cursor.fetchall()
@@ -144,7 +148,7 @@ async def get_itineraries(request: Request):
     connection.close()
 
     if not itinerary:
-        raise HTTPException(status_code=404, detail=f"Itinerary not found for ID {id}")
+        raise HTTPException(status_code=404, detail=f"Itinerary not found for ID {id} and user ID {user_id}")
 
 
     response = {
@@ -153,8 +157,8 @@ async def get_itineraries(request: Request):
 
         "destination": itinerary['destination'],
         "links": {
-            "self": f"{os.getenv('ITINERARY_BUILDER_URL')}/get_itineraries?id={id}",
-            "all_itineraries": f"{os.getenv('ITINERARY_BUILDER_URL')}/get_itineraries",
+            "self": f"{os.getenv('ITINERARY_BUILDER_URL')}/get_itineraries?user_id={user_id}&id={id}",
+            "all_itineraries": f"{os.getenv('ITINERARY_BUILDER_URL')}/get_itineraries?user_id={user_id}",
             "create_itinerary": f"{os.getenv('ITINERARY_BUILDER_URL')}/generate_itinerary"
         }
     }
