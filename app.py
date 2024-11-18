@@ -111,7 +111,7 @@ async def get_itineraries(request: Request):
     # return all itineraries if no ID is provided (default)
     if not id:
         connection = create_connection()
-        cursor = connection.cursor()
+        cursor = connection.cursor(dictionary=True)
         cursor.execute("SELECT * FROM itinerary_builder.itineraries WHERE user_id = %s", (user_id,))
         itineraries = cursor.fetchall()
         connection.close()
