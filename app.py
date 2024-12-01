@@ -173,14 +173,14 @@ itinerary_id: int
 async def remove_event(request: RemoveEventRequest):
     data = request.dict()
     
-    day_events_id = data['day_events_id']
+    event_id = data['event_id']
     itinerary_id = data['itinerary_id']
     
     connection = create_connection()
     cursor = connection.cursor()
     
 
-    cursor.execute("SELECT * FROM itinerary_builder.day_events WHERE day_events_id = %s", (day_events_id,))
+    cursor.execute("SELECT * FROM itinerary_builder.day_events WHERE event_id = %s", (event_id,))
     event = cursor.fetchone()
     
     if not event:
@@ -188,7 +188,7 @@ async def remove_event(request: RemoveEventRequest):
         raise HTTPException(status_code=404, detail="Event not found within the specified itinerary")
     
 
-    cursor.execute("DELETE FROM itinerary_builder.day_events WHERE day_events_id = %s", (day_events_id,))
+    cursor.execute("DELETE FROM itinerary_builder.day_events WHERE event_id = %s", (event_id,))
     connection.commit()
     connection.close()
     
