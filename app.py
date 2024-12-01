@@ -32,7 +32,7 @@ class ItineraryRequest(BaseModel):
     user_id: str
 
 class RemoveEventRequest(BaseModel):
-    day_events_id: int
+    event_id: int
     itinerary_id: int
 
 @app.middleware("http")
