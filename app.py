@@ -31,11 +31,10 @@ class ItineraryRequest(BaseModel):
     activities: list
     user_id: str
 
-class ItineraryUpdateRequest(BaseModel):
-    destination: str = None
-    start_date: str = None
-    end_date: str = None
-    activities: list[int] = None  # List of activity IDs
+class RemoveEventRequest(BaseModel):
+    day_id: int
+    event_id: int
+    itinerary_id: int
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
@@ -163,6 +162,46 @@ async def get_itineraries(request: Request):
         }
     }
 
+    return response, 200
+
+"""
+Remove a specified event from an itinerary.
+@params: day_events_id, itinerary_id
+day_events_id: int
+itinerary_id: int
+"""
+@app.patch("/remove_event")
+async def remove_event(request: RemoveEventRequest):
+    data = request.dict()
+    
+    day_id = data['day_id']
+    event_id = data['event_id']
+    itinerary_id = data['itinerary_id']
+    
+    connection = create_connection()
+    cursor = connection.cursor()
+    
+
+    cursor.execute("SELECT * FROM itinerary_builder.day_events WHERE event_id = %s AND day_id = %s", (event_id, day_id,))
+    event = cursor.fetchone()
+    
+    if not event:
+        connection.close()
+        raise HTTPException(status_code=404, detail="Event not found within the specified itinerary")
+    
+
+    cursor.execute("DELETE FROM itinerary_builder.day_events WHERE event_id = %s AND day_id = %s", (event_id, day_id,))
+    connection.commit()
+    connection.close()
+    
+    response = {
+        "message": "Event removed successfully",
+        "links": {
+            "self": f"{os.getenv('ITINERARY_BUILDER_URL')}/get_itineraries?id={itinerary_id}",
+            "all_itineraries": f"{os.getenv('ITINERARY_BUILDER_URL')}/get_itineraries"
+        }
+    }
+    
     return response, 200
 
 if __name__ == '__main__':
