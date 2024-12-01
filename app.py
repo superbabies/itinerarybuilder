@@ -180,7 +180,7 @@ async def remove_event(request: RemoveEventRequest):
     cursor = connection.cursor()
     
 
-    cursor.execute("SELECT * FROM itinerary_builder.day_events WHERE event_id = %s", (event_id,))
+    cursor.execute("SELECT * FROM itinerary_builder.day_events WHERE event_id = %s AND itinerary_id = %s", (event_id, itinerary_id,))
     event = cursor.fetchone()
     
     if not event:
