@@ -117,6 +117,9 @@ async def get_itineraries(request: Request):
         cursor = connection.cursor(dictionary=True)
         cursor.execute("SELECT * FROM itinerary_builder.itineraries WHERE user_id = %s", (user_id,))
         itineraries = cursor.fetchall()
+        if not itineraries:
+            connection.close()
+            raise HTTPException(status_code=404, detail="No itineraries found for this user")
         connection.close()
 
         response = {
@@ -135,6 +138,9 @@ async def get_itineraries(request: Request):
     cursor = connection.cursor(dictionary=True)
     cursor.execute("SELECT * FROM itinerary_builder.itineraries WHERE itinerary_id = %s AND user_id = %s", (id, user_id,))
     itinerary = cursor.fetchone()
+    if not itinerary:
+        connection.close()
+        raise HTTPException(status_code=404, detail=f"Itinerary not found for ID {id} and user ID {user_id}")
     cursor.execute("SELECT * FROM itinerary_builder.days WHERE itinerary_id = %s", (id,))
     itinerary_days = cursor.fetchall()
     start_date = itinerary['start_date']
@@ -149,10 +155,6 @@ async def get_itineraries(request: Request):
         day["utc_date"] = day_date.isoformat()
         day_idx += 1
     connection.close()
-
-    if not itinerary:
-        raise HTTPException(status_code=404, detail=f"Itinerary not found for ID {id} and user ID {user_id}")
-
 
     response = {
         "itinerary": itinerary,
