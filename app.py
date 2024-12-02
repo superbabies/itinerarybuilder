@@ -204,6 +204,43 @@ async def remove_event(request: RemoveEventRequest):
     
     return response, 200
 
+"""
+Delete an entire itinerary based on the provided itinerary_id.
+@params: itinerary_id
+itinerary_id: int
+"""
+@app.delete("/delete_itinerary/{itinerary_id}")
+async def delete_itinerary(itinerary_id: int):
+    connection = create_connection()
+    cursor = connection.cursor()
+    
+    cursor.execute("SELECT * FROM itinerary_builder.itineraries WHERE itinerary_id = %s", (itinerary_id,))
+    itinerary = cursor.fetchone()
+    
+    if not itinerary:
+        connection.close()
+        raise HTTPException(status_code=404, detail="Itinerary not found")
+    
+    cursor.execute("DELETE FROM itinerary_builder.day_events WHERE day_id IN (SELECT day_id FROM itinerary_builder.days WHERE itinerary_id = %s)", (itinerary_id,))
+    connection.commit()
+    
+    cursor.execute("DELETE FROM itinerary_builder.days WHERE itinerary_id = %s", (itinerary_id,))
+    connection.commit()
+    
+    cursor.execute("DELETE FROM itinerary_builder.itineraries WHERE itinerary_id = %s", (itinerary_id,))
+    connection.commit()
+    connection.close()
+    
+    response = {
+        "message": "Itinerary deleted successfully",
+        "links": {
+            "self": f"{os.getenv('ITINERARY_BUILDER_URL')}/get_itineraries",
+            "create_itinerary": f"{os.getenv('ITINERARY_BUILDER_URL')}/generate_itinerary"
+        }
+    }
+    
+    return response, 200
+
 if __name__ == '__main__':
     import uvicorn
     uvicorn.run(app, host='0.0.0.0', port=5000, log_level="info")
