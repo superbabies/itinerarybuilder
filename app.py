@@ -36,6 +36,10 @@ class RemoveEventRequest(BaseModel):
     event_id: int
     itinerary_id: int
 
+class DeleteItineraryRequest(BaseModel):
+    user_id: str
+    itinerary_id: int
+
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
     logging.info(f"Before Request: {request.method} {request.url.path}")
@@ -209,8 +213,13 @@ Delete an entire itinerary based on the provided itinerary_id.
 @params: itinerary_id
 itinerary_id: int
 """
-@app.delete("/delete_itinerary/{user_id}/{itinerary_id}")
-async def delete_itinerary(user_id: str, itinerary_id: int):
+@app.delete("/delete_itinerary")
+async def delete_itinerary(request: DeleteItineraryRequest):
+    data = request.dict()
+
+    user_id = data['user_id']
+    itinerary_id = data['itinerary_id']
+
     connection = create_connection()
     cursor = connection.cursor()
     
