@@ -36,6 +36,10 @@ class RemoveEventRequest(BaseModel):
     event_id: int
     itinerary_id: int
 
+class DeleteItineraryRequest(BaseModel):
+    user_id: str
+    itinerary_id: int
+
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
     logging.info(f"Before Request: {request.method} {request.url.path}")
@@ -113,6 +117,9 @@ async def get_itineraries(request: Request):
         cursor = connection.cursor(dictionary=True)
         cursor.execute("SELECT * FROM itinerary_builder.itineraries WHERE user_id = %s", (user_id,))
         itineraries = cursor.fetchall()
+        if not itineraries:
+            connection.close()
+            raise HTTPException(status_code=404, detail="No itineraries found for this user")
         connection.close()
 
         response = {
@@ -131,6 +138,9 @@ async def get_itineraries(request: Request):
     cursor = connection.cursor(dictionary=True)
     cursor.execute("SELECT * FROM itinerary_builder.itineraries WHERE itinerary_id = %s AND user_id = %s", (id, user_id,))
     itinerary = cursor.fetchone()
+    if not itinerary:
+        connection.close()
+        raise HTTPException(status_code=404, detail=f"Itinerary not found for ID {id} and user ID {user_id}")
     cursor.execute("SELECT * FROM itinerary_builder.days WHERE itinerary_id = %s", (id,))
     itinerary_days = cursor.fetchall()
     start_date = itinerary['start_date']
@@ -145,10 +155,6 @@ async def get_itineraries(request: Request):
         day["utc_date"] = day_date.isoformat()
         day_idx += 1
     connection.close()
-
-    if not itinerary:
-        raise HTTPException(status_code=404, detail=f"Itinerary not found for ID {id} and user ID {user_id}")
-
 
     response = {
         "itinerary": itinerary,
@@ -199,6 +205,48 @@ async def remove_event(request: RemoveEventRequest):
         "links": {
             "self": f"{os.getenv('ITINERARY_BUILDER_URL')}/get_itineraries?id={itinerary_id}",
             "all_itineraries": f"{os.getenv('ITINERARY_BUILDER_URL')}/get_itineraries"
+        }
+    }
+    
+    return response, 200
+
+"""
+Delete an entire itinerary based on the provided itinerary_id.
+@params: itinerary_id
+itinerary_id: int
+"""
+@app.delete("/delete_itinerary")
+async def delete_itinerary(request: DeleteItineraryRequest):
+    data = request.dict()
+
+    user_id = data['user_id']
+    itinerary_id = data['itinerary_id']
+
+    connection = create_connection()
+    cursor = connection.cursor()
+    
+    cursor.execute("SELECT * FROM itinerary_builder.itineraries WHERE itinerary_id = %s AND user_id = %s", (itinerary_id, user_id,))
+    itinerary = cursor.fetchone()
+    
+    if not itinerary:
+        connection.close()
+        raise HTTPException(status_code=404, detail="Itinerary not found for this user")
+    
+    cursor.execute("DELETE FROM itinerary_builder.day_events WHERE day_id IN (SELECT day_id FROM itinerary_builder.days WHERE itinerary_id = %s)", (itinerary_id,))
+    connection.commit()
+    
+    cursor.execute("DELETE FROM itinerary_builder.days WHERE itinerary_id = %s", (itinerary_id,))
+    connection.commit()
+    
+    cursor.execute("DELETE FROM itinerary_builder.itineraries WHERE itinerary_id = %s", (itinerary_id,))
+    connection.commit()
+    connection.close()
+    
+    response = {
+        "message": "Itinerary deleted successfully",
+        "links": {
+            "self": f"{os.getenv('ITINERARY_BUILDER_URL')}/get_itineraries",
+            "create_itinerary": f"{os.getenv('ITINERARY_BUILDER_URL')}/generate_itinerary"
         }
     }
     
