@@ -209,17 +209,17 @@ Delete an entire itinerary based on the provided itinerary_id.
 @params: itinerary_id
 itinerary_id: int
 """
-@app.delete("/delete_itinerary/{itinerary_id}")
-async def delete_itinerary(itinerary_id: int):
+@app.delete("/delete_itinerary/{user_id}/{itinerary_id}")
+async def delete_itinerary(user_id: str, itinerary_id: int):
     connection = create_connection()
     cursor = connection.cursor()
     
-    cursor.execute("SELECT * FROM itinerary_builder.itineraries WHERE itinerary_id = %s", (itinerary_id,))
+    cursor.execute("SELECT * FROM itinerary_builder.itineraries WHERE itinerary_id = %s AND user_id = %s", (itinerary_id, user_id,))
     itinerary = cursor.fetchone()
     
     if not itinerary:
         connection.close()
-        raise HTTPException(status_code=404, detail="Itinerary not found")
+        raise HTTPException(status_code=404, detail="Itinerary not found for this user")
     
     cursor.execute("DELETE FROM itinerary_builder.day_events WHERE day_id IN (SELECT day_id FROM itinerary_builder.days WHERE itinerary_id = %s)", (itinerary_id,))
     connection.commit()
